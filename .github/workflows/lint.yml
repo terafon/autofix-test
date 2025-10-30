@@ -1,13 +1,13 @@
 name: ruff-code-scanning
 
 on:
+  pull_request:
   push:
     branches: [ master ]
-  pull_request:
 
 permissions:
   contents: read
-  security-events: write   # SARIF のアップロードに必要
+  security-events: write
 
 jobs:
   ruff:
@@ -17,20 +17,33 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"  # 3.14 は未リリース/不安定。安定版推奨
+          python-version: "3.13"
 
       - name: Install ruff
         run: pip install ruff
 
-      - name: Check formatting (ruff format --check)
+      - id: fmt
+        name: Check formatting (ruff format --check)
         run: ruff format --check .
+        continue-on-error: true
 
-      - name: Run Ruff (SARIF)
+      - id: lint
+        name: Run Ruff (SARIF)
+        if: ${{ always() }}         # ← fmt が失敗しても実行
         run: ruff check . --output-format sarif --output-file ruff.sarif
+        continue-on-error: true
 
       - name: Upload SARIF to GitHub
+        if: ${{ always() }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ruff.sarif
           category: ruff
+
+      # ここで最終判定: どちらかが失敗なら Job を失敗にする
+      - name: Fail job if any check failed
+        if: ${{ steps.fmt.outcome == 'failure' || steps.lint.outcome == 'failure' }}
+        run: |
+          echo "Formatting or lint failed. See annotations and SARIF." >&2
+          exit 1
 
