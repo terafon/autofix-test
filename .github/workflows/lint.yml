@@ -1,22 +1,36 @@
-name: lint
+name: ruff-code-scanning
 
 on:
-  pull_request:
   push:
     branches: [ master ]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write   # SARIF のアップロードに必要
 
 jobs:
   ruff:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.13"  # 3.14 は未リリース/不安定。安定版推奨
 
-      - name: Install Ruff
+      - name: Install ruff
         run: pip install ruff
 
-      - name: Run Ruff lint
-        run: ruff check . --output-format=github
+      - name: Check formatting (ruff format --check)
+        run: ruff format --check .
+
+      - name: Run Ruff (SARIF)
+        run: ruff check . --output-format sarif --output-file ruff.sarif
+
+      - name: Upload SARIF to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ruff.sarif
+          category: ruff
 
